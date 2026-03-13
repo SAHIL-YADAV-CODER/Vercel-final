@@ -22,6 +22,37 @@ def format_duration(s):
     return f"{s // 3600}:{(s % 3600) // 60:02d}:{s % 60:02d}"
 
 
+def build_ydl_opts(extra={}):
+    """
+    Build yt-dlp options that bypass YouTube bot detection:
+    1. Uses a TV client (does not require sign-in)
+    2. Spoofs a real browser User-Agent
+    3. Disables bot-check extractors
+    """
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        # Use the Android or TV embedded client — bypasses bot check without cookies
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["tv_embedded", "android"],
+                "player_skip": ["webpage", "config"],
+            }
+        },
+        "http_headers": {
+            "User-Agent": (
+                "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version"
+            ),
+        },
+        # Avoid throttling / detection
+        "sleep_interval": 0,
+        "max_sleep_interval": 0,
+    }
+    opts.update(extra)
+    return opts
+
+
 class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
@@ -37,9 +68,9 @@ class handler(BaseHTTPRequestHandler):
         if not url:
             return self._json({"error": "URL is required"}, 400)
 
-        ydl_opts = {"quiet": True, "no_warnings": True, "skip_download": True}
-
         try:
+            ydl_opts = build_ydl_opts()
+
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
 
@@ -94,6 +125,15 @@ class handler(BaseHTTPRequestHandler):
                 "audio_formats": audio_formats,
             })
 
+        except yt_dlp.utils.DownloadError as e:
+            err = str(e)
+            # Friendlier message for any remaining bot-check errors
+            if "Sign in" in err or "bot" in err.lower():
+                self._json({
+                    "error": "YouTube is blocking this server. Try again in a few seconds — Vercel IPs rotate automatically."
+                }, 429)
+            else:
+                self._json({"error": err}, 400)
         except Exception as e:
             self._json({"error": str(e)}, 500)
 
