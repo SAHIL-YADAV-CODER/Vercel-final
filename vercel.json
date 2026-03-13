@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/*.py", "use": "@vercel/python" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/(.*)", "dest": "/public/$1" }
+  ],
+  "functions": {
+    "api/info.py":     { "maxDuration": 30 },
+    "api/download.py": { "maxDuration": 60 },
+    "api/proxy.py":    { "maxDuration": 60 }
+  }
+}

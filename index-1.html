@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>YT Vault</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #050508;
+      --s1: #0d0d14;
+      --s2: #14141f;
+      --s3: #1c1c2c;
+      --border: #252538;
+      --acc: #e8ff47;
+      --acc2: #ff4f7b;
+      --acc3: #47c8ff;
+      --text: #eeeef5;
+      --muted: #5a5a78;
+      --r: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* Noise overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.4;
+    }
+
+    .wrap { max-width: 760px; margin: 0 auto; padding: 0 20px; }
+
+    /* ── Header ── */
+    header {
+      padding: 72px 0 56px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 16px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 48px;
+    }
+    .wordmark {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3rem, 10vw, 6rem);
+      letter-spacing: 2px;
+      line-height: 1;
+      color: var(--acc);
+      text-shadow: 0 0 40px rgba(232,255,71,0.2);
+    }
+    .wordmark span { color: var(--text); }
+    .header-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      text-align: right;
+      line-height: 1.8;
+    }
+
+    /* ── URL Row ── */
+    .url-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .url-input {
+      flex: 1;
+      background: var(--s2);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      padding: 14px 18px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .url-input:focus {
+      border-color: var(--acc);
+      box-shadow: 0 0 0 3px rgba(232,255,71,0.08);
+    }
+    .url-input::placeholder { color: var(--muted); }
+    .fetch-btn {
+      background: var(--acc);
+      border: none;
+      border-radius: var(--r);
+      color: #050508;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 600;
+      font-size: 14px;
+      padding: 14px 28px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: opacity .15s, transform .1s;
+    }
+    .fetch-btn:hover { opacity: .88; transform: translateY(-1px); }
+    .fetch-btn:active { transform: translateY(0); }
+    .fetch-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+    /* ── Error ── */
+    .err {
+      display: none;
+      background: rgba(255,79,123,.08);
+      border: 1px solid rgba(255,79,123,.25);
+      border-radius: var(--r);
+      color: var(--acc2);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+    }
+
+    /* ── Info Card ── */
+    .info-card {
+      display: none;
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      overflow: hidden;
+      margin-bottom: 28px;
+      animation: up .35s ease;
+    }
+    .info-inner { display: flex; gap: 18px; padding: 18px; }
+    .thumb {
+      flex-shrink: 0;
+      width: 148px;
+      height: 83px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: var(--s3);
+      position: relative;
+    }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .dur {
+      position: absolute;
+      bottom: 4px; right: 4px;
+      background: rgba(0,0,0,.85);
+      color: #fff;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .vmeta { flex: 1; min-width: 0; }
+    .vtitle {
+      font-size: .95rem;
+      font-weight: 600;
+      line-height: 1.45;
+      margin-bottom: 10px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag {
+      background: var(--s3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      padding: 3px 10px;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 4px;
+      margin-bottom: 20px;
+    }
+    .tab {
+      flex: 1;
+      background: none;
+      border: none;
+      border-radius: 8px;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 500;
+      font-size: 14px;
+      padding: 11px;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .tab.on { background: var(--s3); color: var(--text); }
+
+    /* ── Format Grid ── */
+    .fmt-section { display: none; animation: up .35s ease; }
+    .fmt-grid {
+      display: none;
+      grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+      gap: 9px;
+      margin-bottom: 20px;
+    }
+    .fmt-grid.on { display: grid; }
+    .fmt-card {
+      background: var(--s2);
+      border: 2px solid var(--border);
+      border-radius: var(--r);
+      padding: 14px 12px;
+      cursor: pointer;
+      transition: border-color .2s, transform .15s;
+      position: relative;
+    }
+    .fmt-card:hover { border-color: rgba(232,255,71,.4); transform: translateY(-2px); }
+    .fmt-card.on { border-color: var(--acc); background: rgba(232,255,71,.04); }
+    .fmt-card.on::after {
+      content: '✓';
+      position: absolute;
+      top: 8px; right: 10px;
+      color: var(--acc);
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .fq { font-size: 1.35rem; font-weight: 600; margin-bottom: 3px; }
+    .fe { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--acc3); text-transform: uppercase; margin-bottom: 3px; }
+    .fs { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); }
+    .fbadge {
+      display: inline-block;
+      background: rgba(71,200,255,.1);
+      border: 1px solid rgba(71,200,255,.2);
+      color: var(--acc3);
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-top: 5px;
+    }
+
+    /* ── Audio output selector ── */
+    .ao-section { display: none; margin-bottom: 20px; }
+    .ao-label { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+    .ao-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+    .ao-pill {
+      background: var(--s2);
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      padding: 8px 18px;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .ao-pill.on { border-color: var(--acc); color: var(--acc); }
+
+    /* ── Download Button ── */
+    .dl-btn {
+      width: 100%;
+      background: var(--s2);
+      border: 2px solid var(--border);
+      border-radius: var(--r);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 600;
+      font-size: 15px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all .25s;
+      position: relative;
+      overflow: hidden;
+    }
+    .dl-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(232,255,71,.06), transparent);
+      opacity: 0;
+      transition: opacity .3s;
+    }
+    .dl-btn:hover { border-color: var(--acc); color: var(--acc); }
+    .dl-btn:hover::before { opacity: 1; }
+    .dl-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ── Progress ── */
+    .prog-box {
+      display: none;
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 22px;
+      margin-top: 16px;
+      animation: up .3s ease;
+    }
+    .prog-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .prog-lbl { font-size: 13px; font-weight: 500; }
+    .prog-pct { font-family: 'DM Mono', monospace; font-size: 22px; font-weight: 500; color: var(--acc); }
+    .prog-track { height: 4px; background: var(--s3); border-radius: 99px; overflow: hidden; margin-bottom: 14px; }
+    .prog-fill { height: 100%; background: linear-gradient(90deg, var(--acc), var(--acc2)); border-radius: 99px; width: 0; transition: width .4s ease; }
+    .prog-stats { display: flex; gap: 24px; flex-wrap: wrap; }
+    .ps { display: flex; flex-direction: column; gap: 2px; }
+    .ps-l { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+    .ps-v { font-family: 'DM Mono', monospace; font-size: 12px; }
+
+    /* ── Success ── */
+    .ok-box {
+      display: none;
+      background: rgba(232,255,71,.04);
+      border: 1px solid rgba(232,255,71,.2);
+      border-radius: var(--r);
+      padding: 28px;
+      text-align: center;
+      margin-top: 16px;
+      animation: up .35s ease;
+    }
+    .ok-icon { font-size: 2.2rem; margin-bottom: 10px; }
+    .ok-title { font-size: 1.1rem; font-weight: 600; color: var(--acc); margin-bottom: 6px; }
+    .ok-sub { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); margin-bottom: 18px; }
+    .save-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--acc);
+      border: none;
+      border-radius: 8px;
+      color: #050508;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      padding: 12px 32px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: opacity .15s, transform .1s;
+    }
+    .save-btn:hover { opacity: .88; transform: translateY(-1px); }
+    .reset-btn {
+      display: block;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+      margin: 14px auto 0;
+    }
+    .reset-btn:hover { color: var(--text); }
+
+    footer {
+      padding: 48px 0 60px;
+      text-align: center;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      margin-top: 60px;
+    }
+    footer a { color: var(--acc3); text-decoration: none; }
+
+    .spin {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(0,0,0,.25);
+      border-top-color: #050508;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+      margin-right: 7px;
+    }
+
+    @keyframes up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 500px) {
+      .info-inner { flex-direction: column; }
+      .thumb { width: 100%; height: 160px; }
+      .url-row { flex-direction: column; }
+      header { grid-template-columns: 1fr; }
+      .header-label { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="wordmark">YT<span>VAULT</span></div>
+    </div>
+    <div class="header-label">
+      Video + Audio<br>Any Quality
+    </div>
+  </header>
+
+  <!-- URL -->
+  <div class="url-row">
+    <input class="url-input" id="urlInput" type="text" placeholder="Paste a YouTube URL…" autocomplete="off"/>
+    <button class="fetch-btn" id="fetchBtn" onclick="fetchInfo()">Fetch</button>
+  </div>
+  <div class="err" id="errBox"></div>
+
+  <!-- Info -->
+  <div class="info-card" id="infoCard">
+    <div class="info-inner">
+      <div class="thumb">
+        <img id="thumb" src="" alt=""/>
+        <span class="dur" id="dur"></span>
+      </div>
+      <div class="vmeta">
+        <div class="vtitle" id="vtitle"></div>
+        <div class="tags">
+          <span class="tag" id="chan"></span>
+          <span class="tag" id="views"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formats -->
+  <div class="fmt-section" id="fmtSection">
+    <div class="tabs">
+      <button class="tab on" id="tVideo" onclick="switchTab('video')">🎬 Video</button>
+      <button class="tab" id="tAudio" onclick="switchTab('audio')">🎵 Audio Only</button>
+    </div>
+
+    <div class="fmt-grid on" id="vGrid"></div>
+    <div class="fmt-grid" id="aGrid"></div>
+
+    <div class="ao-section" id="aoSection">
+      <div class="ao-label">// Output Format</div>
+      <div class="ao-pills">
+        <button class="ao-pill on" onclick="selAF('mp3',this)">MP3</button>
+        <button class="ao-pill" onclick="selAF('m4a',this)">M4A</button>
+        <button class="ao-pill" onclick="selAF('wav',this)">WAV</button>
+        <button class="ao-pill" onclick="selAF('flac',this)">FLAC</button>
+        <button class="ao-pill" onclick="selAF('ogg',this)">OGG</button>
+      </div>
+    </div>
+
+    <button class="dl-btn" id="dlBtn" onclick="startDl()">⬇ Start Download</button>
+  </div>
+
+  <!-- Progress -->
+  <div class="prog-box" id="progBox">
+    <div class="prog-top">
+      <span class="prog-lbl" id="progLbl">Preparing…</span>
+      <span class="prog-pct" id="progPct">0%</span>
+    </div>
+    <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+    <div class="prog-stats">
+      <div class="ps"><span class="ps-l">Status</span><span class="ps-v" id="pStat">—</span></div>
+      <div class="ps"><span class="ps-l">File</span><span class="ps-v" id="pFile">—</span></div>
+    </div>
+  </div>
+
+  <!-- Success -->
+  <div class="ok-box" id="okBox">
+    <div class="ok-icon">✅</div>
+    <div class="ok-title">Ready to Save</div>
+    <div class="ok-sub" id="okSub">your file is waiting</div>
+    <a class="save-btn" id="saveLink" href="#">⬇ Save File</a>
+    <button class="reset-btn" onclick="resetAll()">↩ Download another</button>
+  </div>
+
+  <footer>
+    Powered by <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a> · For personal use only · Respect copyright
+  </footer>
+</div>
+
+<script>
+  let tab = 'video';
+  let selFmt = null;
+  let selAudio = 'mp3';
+
+  // ── Fetch info ──
+  async function fetchInfo() {
+    const url = document.getElementById('urlInput').value.trim();
+    if (!url) return showErr('Please enter a YouTube URL');
+    setBusy('fetchBtn', true, '<span class="spin"></span>Fetching…');
+    clearErr();
+    hide('infoCard'); hide('fmtSection'); hide('progBox'); hide('okBox');
+
+    try {
+      const r = await fetch('/api/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const d = await r.json();
+      if (!r.ok) return showErr(d.error || 'Could not fetch video info');
+      renderInfo(d);
+      renderFmts(d);
+    } catch (e) {
+      showErr('Network error — ' + e.message);
+    } finally {
+      setBusy('fetchBtn', false, 'Fetch');
+    }
+  }
+
+  function renderInfo(d) {
+    document.getElementById('thumb').src = d.thumbnail;
+    document.getElementById('dur').textContent = d.duration;
+    document.getElementById('vtitle').textContent = d.title;
+    document.getElementById('chan').textContent = '📺 ' + d.channel;
+    document.getElementById('views').textContent = '👁 ' + d.view_count;
+    show('infoCard');
+  }
+
+  function renderFmts(d) {
+    const vg = document.getElementById('vGrid');
+    const ag = document.getElementById('aGrid');
+    vg.innerHTML = ag.innerHTML = '';
+    selFmt = null;
+
+    d.video_formats.forEach(f => {
+      const c = card(f.format_id, `
+        <div class="fq">${f.quality}</div>
+        <div class="fe">${f.ext.toUpperCase()}</div>
+        <div class="fs">${f.filesize}${f.fps ? ' · ' + f.fps + 'fps' : ''}</div>
+        ${f.has_audio ? '' : '<span class="fbadge">video only</span>'}
+      `);
+      vg.appendChild(c);
+    });
+
+    d.audio_formats.forEach(f => {
+      const c = card(f.format_id, `
+        <div class="fq">${f.quality}</div>
+        <div class="fe">${f.ext.toUpperCase()}</div>
+        <div class="fs">${f.filesize}</div>
+        <span class="fbadge">source audio</span>
+      `);
+      ag.appendChild(c);
+    });
+
+    show('fmtSection');
+  }
+
+  function card(fid, inner) {
+    const d = document.createElement('div');
+    d.className = 'fmt-card';
+    d.dataset.fid = fid;
+    d.innerHTML = inner;
+    d.onclick = () => {
+      document.querySelectorAll('.fmt-card.on').forEach(x => x.classList.remove('on'));
+      d.classList.add('on');
+      selFmt = fid;
+    };
+    return d;
+  }
+
+  function switchTab(t) {
+    tab = t;
+    selFmt = null;
+    document.querySelectorAll('.fmt-card.on').forEach(x => x.classList.remove('on'));
+    document.getElementById('tVideo').classList.toggle('on', t === 'video');
+    document.getElementById('tAudio').classList.toggle('on', t === 'audio');
+    document.getElementById('vGrid').classList.toggle('on', t === 'video');
+    document.getElementById('aGrid').classList.toggle('on', t === 'audio');
+    document.getElementById('aoSection').style.display = t === 'audio' ? 'block' : 'none';
+  }
+
+  function selAF(f, btn) {
+    document.querySelectorAll('.ao-pill.on').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    selAudio = f;
+  }
+
+  // ── Download ──
+  async function startDl() {
+    const url = document.getElementById('urlInput').value.trim();
+    if (!url) return;
+    if (tab === 'video' && !selFmt) return showErr('Please select a video quality');
+
+    setBusy('dlBtn', true, '<span class="spin"></span>Preparing…');
+    hide('okBox'); hide('progBox'); clearErr();
+
+    showProg('Contacting server…', 10);
+
+    try {
+      const r = await fetch('/api/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url,
+          type: tab,
+          format_id: selFmt,
+          audio_format: selAudio
+        })
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        hideProg();
+        showErr(d.error || 'Download failed');
+        setBusy('dlBtn', false, '⬇ Start Download');
+        return;
+      }
+
+      updateProg('Building download link…', 60);
+
+      // Build proxy URL so browser downloads via our server (avoids CORS / signed-URL expiry)
+      const proxyUrl = `/api/proxy?url=${encodeURIComponent(d.stream_url)}&filename=${encodeURIComponent(d.filename)}&mime=${encodeURIComponent(d.mime)}`;
+
+      updateProg('Ready!', 100);
+      setTimeout(() => {
+        hideProg();
+        showOk(proxyUrl, d.filename);
+        setBusy('dlBtn', false, '⬇ Start Download');
+      }, 400);
+
+    } catch (e) {
+      hideProg();
+      showErr('Error: ' + e.message);
+      setBusy('dlBtn', false, '⬇ Start Download');
+    }
+  }
+
+  function showProg(lbl, pct) {
+    document.getElementById('progLbl').textContent = lbl;
+    document.getElementById('progPct').textContent = pct + '%';
+    document.getElementById('progFill').style.width = pct + '%';
+    document.getElementById('pStat').textContent = lbl;
+    show('progBox');
+  }
+  function updateProg(lbl, pct) {
+    document.getElementById('progLbl').textContent = lbl;
+    document.getElementById('progPct').textContent = pct + '%';
+    document.getElementById('progFill').style.width = pct + '%';
+    document.getElementById('pStat').textContent = lbl;
+  }
+  function hideProg() { hide('progBox'); }
+
+  function showOk(href, filename) {
+    document.getElementById('saveLink').href = href;
+    document.getElementById('saveLink').download = filename;
+    document.getElementById('okSub').textContent = filename;
+    show('okBox');
+  }
+
+  function resetAll() {
+    ['infoCard','fmtSection','progBox','okBox'].forEach(hide);
+    clearErr();
+    document.getElementById('urlInput').value = '';
+    selFmt = null;
+    setBusy('dlBtn', false, '⬇ Start Download');
+  }
+
+  // ── Helpers ──
+  function show(id) { document.getElementById(id).style.display = 'block'; }
+  function hide(id) { document.getElementById(id).style.display = 'none'; }
+  function showErr(m) { const b = document.getElementById('errBox'); b.textContent = '⚠ ' + m; b.style.display = 'block'; }
+  function clearErr() { document.getElementById('errBox').style.display = 'none'; }
+  function setBusy(id, busy, html) {
+    const el = document.getElementById(id);
+    el.disabled = busy;
+    el.innerHTML = html;
+  }
+  document.getElementById('urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') fetchInfo(); });
+</script>
+</body>
+</html>
