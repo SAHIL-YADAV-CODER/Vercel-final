@@ -3,6 +3,27 @@ import json
 import yt_dlp
 
 
+def build_ydl_opts(extra={}):
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["tv_embedded", "android"],
+                "player_skip": ["webpage", "config"],
+            }
+        },
+        "http_headers": {
+            "User-Agent": (
+                "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version"
+            ),
+        },
+    }
+    opts.update(extra)
+    return opts
+
+
 class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
@@ -28,7 +49,7 @@ class handler(BaseHTTPRequestHandler):
             else:
                 fmt = f"{format_id}+bestaudio/{format_id}/best" if format_id else "bestvideo+bestaudio/best"
 
-            ydl_opts = {"quiet": True, "no_warnings": True, "skip_download": True, "format": fmt}
+            ydl_opts = build_ydl_opts({"format": fmt})
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -64,6 +85,14 @@ class handler(BaseHTTPRequestHandler):
                 "title": title,
             })
 
+        except yt_dlp.utils.DownloadError as e:
+            err = str(e)
+            if "Sign in" in err or "bot" in err.lower():
+                self._json({
+                    "error": "YouTube is blocking this request. Please try again in a moment."
+                }, 429)
+            else:
+                self._json({"error": err}, 400)
         except Exception as e:
             self._json({"error": str(e)}, 500)
 
