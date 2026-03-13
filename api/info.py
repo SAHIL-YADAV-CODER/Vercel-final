@@ -1,10 +1,5 @@
-"""
-/api/info  — fetch YouTube video metadata + available formats
-Serverless safe: no threading, no disk writes, just metadata extraction.
-"""
-import json
-import re
 from http.server import BaseHTTPRequestHandler
+import json
 import yt_dlp
 
 
@@ -28,28 +23,28 @@ def format_duration(s):
 
 
 class handler(BaseHTTPRequestHandler):
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self._cors()
+        self.end_headers()
+
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length) or b"{}")
         url = body.get("url", "").strip()
 
         if not url:
-            self._json({"error": "URL is required"}, 400)
-            return
+            return self._json({"error": "URL is required"}, 400)
 
-        ydl_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "skip_download": True,
-        }
+        ydl_opts = {"quiet": True, "no_warnings": True, "skip_download": True}
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
 
             formats = info.get("formats", [])
-            video_formats = []
-            audio_formats = []
+            video_formats, audio_formats = [], []
             seen_v, seen_a = set(), set()
 
             for f in formats:
@@ -73,9 +68,7 @@ class handler(BaseHTTPRequestHandler):
                             "fps": f.get("fps"),
                             "filesize": format_size(size),
                             "has_audio": acodec != "none",
-                            "vcodec": vcodec,
                         })
-
                 elif acodec != "none" and vcodec == "none" and abr:
                     key = (int(abr), ext)
                     if key not in seen_a:
@@ -97,20 +90,12 @@ class handler(BaseHTTPRequestHandler):
                 "duration": format_duration(info.get("duration")),
                 "channel": info.get("channel") or info.get("uploader", "Unknown"),
                 "view_count": f"{info.get('view_count', 0):,}" if info.get("view_count") else "N/A",
-                "video_id": info.get("id", ""),
                 "video_formats": video_formats,
                 "audio_formats": audio_formats,
             })
 
-        except yt_dlp.utils.DownloadError as e:
-            self._json({"error": str(e)}, 400)
         except Exception as e:
-            self._json({"error": f"Unexpected error: {str(e)}"}, 500)
-
-    def do_OPTIONS(self):
-        self.send_response(204)
-        self._cors()
-        self.end_headers()
+            self._json({"error": str(e)}, 500)
 
     def _json(self, data, status=200):
         body = json.dumps(data).encode()
